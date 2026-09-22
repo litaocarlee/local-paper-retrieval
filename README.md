@@ -1,57 +1,57 @@
 # Local Paper Retrieval
 
-中文 · [English](README.en.md)
+**English** · [中文](README.zh.md)
 
-页级混合检索。输入是一个自然语言问题，输出是回到原 PDF 核对过的证据。全文命中、页向量相似度和 Jev 概率只负责定位，不能代替原文。
+Page-level hybrid retrieval. The input is a natural-language question. The output is evidence checked against the original PDF. Full-text hits, page-vector similarity, and Jev probabilities locate a page. They do not replace the source.
 
-## 流程
+## Pipeline
 
 ```mermaid
 flowchart TD
-  Q[自然语言问题] --> S[search]
-  S --> P{PDF 路径、大小或修改时间变了?}
-  P -->|没有| X[LLM 把问题扩成英文检索式]
-  P -->|变了| Y[只处理新文件或改过的文件: 哈希去重、抽全文、重建全文索引、补页面向量]
+  Q[Natural-language question] --> S[search]
+  S --> P{PDF path, size, or modification time changed?}
+  P -->|No| X[The LLM rewrites the question as English queries]
+  P -->|Yes| Y[Process new or changed files only: hash, extract text, rebuild the full-text index, embed pages]
   Y --> X
-  X --> F[全文检索: 每条检索式取 30 页]
-  F --> D[把这些检索式嵌成向量，和库里每一页比，每条再取 30 页]
-  D --> R[RRF 把两路名次合成一个顺序]
-  R --> C[留下 12 页: 同一篇最多 3 页，每页一段约 1600 字的摘录]
-  C --> J[Jev 在这些摘录里做 Choice，也可以同时给 Noul 或 Score]
-  J --> G{Choice 是 none，或置信度低?}
-  G -->|是| M[多读几页；或整次再跑一遍 search，并打开 Noul 或 Score]
+  X --> F[Full-text search: up to 30 pages per query]
+  F --> D[Embed those queries, compare them with every stored page vector, and take up to 30 pages per query]
+  D --> R[RRF merges the two rankings into one order]
+  R --> C[Keep 12 pages: at most 3 per paper, with an excerpt of about 1600 characters]
+  C --> J[Jev makes a Choice over the excerpts, and may also return Noul or Score]
+  J --> G{Choice is none, or confidence is low?}
+  G -->|Yes| M[Read more pages, or rerun search with Noul or Score]
   M --> K
-  G -->|否| K[从排好的结果里取最少的几页]
-  K --> RD[对每一页 read: 核对文件是否仍是索引时那一版，抽出该页和前后各一页]
-  RD --> V{抽出来的字很少，或问题指向图、表、公式、数值?}
-  V -->|是| I[把那一页渲染出来看]
-  V -->|否| E[写证据卡: 主张、页码、原文摘句、适用边界]
+  G -->|No| K[Take the smallest set of ranked pages]
+  K --> RD[read each page: confirm the file still matches the index, and extract that page plus one page on either side]
+  RD --> V{Extracted text is thin, or the question targets a figure, table, equation, or number?}
+  V -->|Yes| I[Render that page]
+  V -->|No| E[Write an evidence card: claim, page, excerpt, and boundary]
   I --> E
-  E --> A[然后才写事实结论]
+  E --> A[Only then state a factual conclusion]
 ```
 
-文献库未变化时不重建索引。有变化时只处理新增或修改的 PDF：用 SHA-256 去重，抽取全文，重建全文索引，并只为还没有向量的页补嵌入。语言模型或嵌入接口失败时，保留仍然可用的检索路，并在结果中标明降级。Jev 失败时，改由语言模型按摘录里的显式证据打 0–3 分。
+An unchanged library does not trigger a rebuild. When files change, only new or modified PDFs are processed: SHA-256 deduplication, text extraction, a rebuilt full-text index, and embeddings for pages that do not yet have one. If the language-model or embedding call fails, the remaining retrieval channel is kept and the result records the degradation. If Jev fails, the language model scores explicit evidence in each excerpt from 0 to 3.
 
-## 检索
+## Retrieval
 
-查询扩展把问题写成少数英文检索式，保留方法名、指标、数据集和原问题。
+Query expansion rewrites the question into a few English queries. It preserves method names, metrics, datasets, and the original question.
 
-全文检索使用 SQLite FTS5，按 BM25 排序。每条检索式返回至多 30 页。单位是页，不是整篇文档。
+Full-text search uses SQLite FTS5 with BM25 ranking. Each query returns at most 30 pages. The unit is a page, not a whole document.
 
-向量检索只嵌入检索式。页向量在建索引时已经写入，用余弦相似度与全库页向量比较，每条检索式再取至多 30 页。全文检索返回的页面不会再次嵌入。
+Vector search embeds the queries only. Page vectors are already stored in the index. Each query is compared with every stored page vector by cosine similarity and again returns at most 30 pages. Pages returned by full-text search are not embedded again.
 
-两路名次用 Reciprocal Rank Fusion 合并。某一页在某一路的名次为 r 时，该路贡献 `1/(60+r)`。同一页在多路中都靠前，融合分更高。
+The two rankings are merged by reciprocal rank fusion. A page at rank r in one list contributes `1/(60+r)` from that list. A page that ranks high in several lists receives a higher fused score.
 
-融合之后截断为至多 12 页，同一文档至多 3 页。每页附一段约 1600 字的摘录，窗口对准检索词首次出现的位置。
+The fused order is then cut to at most 12 pages, with at most 3 pages from the same document. Each page carries an excerpt of about 1600 characters, centered on the first matched term.
 
-## 裁定与核对
+## Judgment and verification
 
-Jev 对短名单做 Choice，选项包含 `none`。`--jev-noul` 与 `--jev-score` 在同一次调用里追加适切性判断和证据强度。Choice 为 `none` 或置信度低时，第一名不算已核实。
+Jev runs a Choice over the shortlist. The options include `none`. `--jev-noul` and `--jev-score` add a suitability judgment and an evidence-strength score in the same call. A Choice of `none`, or a low confidence, means the top rank is not yet verified.
 
-`read` 从原 PDF 重新抽取目标页及其前后各一页。文件大小和修改时间与索引一致时不重算 SHA-256。抽取文本过短，或问题指向图、表、公式、数值时，才渲染该页。
+`read` extracts the selected page and one neighboring page on each side from the original PDF. SHA-256 is recomputed only when the file size or modification time no longer matches the index. The page is rendered when the extracted text is thin, or when the question targets a figure, table, equation, or number.
 
-事实陈述之前先形成证据卡：主张、支持程度（`direct`、`partial`、`not_found`）、文档标识、标题、页码、可见的章节或图表编号、短原文或明确标出的转述，以及不能外推的边界。Jev 的 Choice、Noul、Score 和重排理由都不是证据。跨文档综合标为推断。
+A factual statement is preceded by an evidence card: the claim, the support status (`direct`, `partial`, or `not_found`), the document identifier, the title, the PDF page, any visible section or figure label, a short quotation or a clearly marked paraphrase, and the boundary beyond which the source should not be stretched. A Jev Choice, Noul, Score, or reranking reason is not evidence. A synthesis across documents is labeled as inference.
 
-## 依赖
+## Requirements
 
-Python，以及 Poppler 的 `pdftotext` 与 `pdfinfo`。查询扩展和页向量各需要一个模型接口。TypeSafe 提供 Jev；缺失时使用语言模型重排。
+Python, plus Poppler's `pdftotext` and `pdfinfo`. Query expansion and page embeddings each require a model endpoint. TypeSafe supplies Jev. If it is unavailable, reranking falls back to the language model.
