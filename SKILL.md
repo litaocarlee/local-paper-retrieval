@@ -1,63 +1,66 @@
 ---
 name: private-kb-retrieve
-description: Agent skill that finds a page in a local PDF library and verifies it on the original PDF. Uses SHA-256 deduplication, SQLite FTS5, stored page vectors, LLM query expansion, TypeSafe Jev Choice with optional Noul/Score and an LLM fallback, and conditional visual review. Use when answering a question from local full text or retrieving exact evidence with a PDF page anchor.
+description: Finds a page in a private PDF library and verifies the answer on the original PDF. Use when the user asks about local papers, a private knowledge base, or wants a page-level citation instead of a web result. Full-text search and stored page vectors locate the page; Jev only ranks excerpts.
 ---
 
 # Private KB retrieve
 
-Agent skill. Treat the PDF as the evidence source. Treat index snippets, embedding matches, LLM rankings, and Jev judgments only as candidate locators.
+The PDF is the evidence. Index snippets, embedding matches, and Jev judgments only locate a page.
 
 Never print or persist API keys. Do not build a second index.
 
+## When to apply
+
+- The question is about PDFs already in this library
+- The user wants a page, passage, or citation from those PDFs
+- A claim must be checked against the original page
+
 ## Quick start
 
+From the skill root. Do not run `sync` first.
+
 ```bash
-python scripts/library.py search \
-  "Which paper evaluates graph explanations?"
-
-python scripts/library.py read \
-  <doc_id> --page <pdf_page> --context 1
+python scripts/library.py search "<question>"
+python scripts/library.py read <doc_id> --page <pdf_page> --context 1 --query "<question>"
 ```
-
-Do not run `sync` as a first step. `search` already compares the current PDF manifest with the index and refreshes only what changed.
 
 ## Workflow
 
-1. Run `search`. Sync hashes only new or modified PDFs; use SHA-256 to deduplicate content.
-2. Read the `actors`, `jev`, and `timings_seconds` fields. The language model turns the question into a few short English queries. SQLite FTS5 retrieves pages by those queries. The embedding model embeds the queries and compares them with page vectors already stored in the index. Python fuses the two rankings with reciprocal rank fusion. Jev then runs a Choice over the candidate excerpts plus `none`. If TypeSafe is missing or fails, the language model remains the rerank fallback.
-   Default search is Choice only. Add `--jev-noul` when pages must be kept or dropped by suitability, and `--jev-score` when each page needs a graded evidence-strength. If both might be useful, pass both flags in the same `search`; they share one TypeSafe call. Do not add a prior Jev call to decide which flags to use.
-   Jev returns probabilities, not evidence. If `jev.choice` is `none` or `jev.confidence` is low, do not treat rank 1 as settled; `read` more than one page or rerun with `--jev-noul` / `--jev-score`.
-3. Select the smallest set of candidate pages that can answer the question.
-4. Run `read` for each selected page. It checks that the PDF still matches the index and re-extracts the original page. SHA-256 is recomputed only after a manifest mismatch or with `--force-hash`.
-5. Inspect `visual_verification.required`. Render and visually inspect only pages selected by the cheap gate because the question explicitly targets a visual, a numeric claim is tied to a table or figure, or extracted text quality is weak.
-6. Build an evidence card before writing any factual claim.
+1. Run `search` on the user's question.
+2. Read `actors`, `jev`, and `timings_seconds`. If the language model, embeddings, or Jev failed, say which stage degraded and continue with what remains.
+3. If `jev.choice` is `none` or confidence is low, do not treat rank 1 as settled. Read more than one page, or rerun once with `--jev-noul` and `--jev-score` together. Do not make a separate call only to decide which flag to pass.
+4. Pick the smallest set of pages that can answer the question.
+5. `read` each selected page. This re-extracts the original PDF. SHA-256 runs only when the file manifest mismatches, or with `--force-hash`.
+6. If `visual_verification.required` is true, render that page and look at it. The gate fires when the question targets a figure, table, equation, or number, or when the extracted text is weak.
+7. Write an evidence card before any factual claim.
 
-## Evidence card contract
+## Evidence card
 
-Record:
+```markdown
+- claim:
+- support_status: direct | partial | not_found
+- doc_id:
+- title:
+- pdf_page:
+- section or figure:
+- excerpt:
+- boundary:
+```
 
-- `claim`
-- `support_status`: `direct`, `partial`, or `not_found`
-- `doc_id` and title
-- `pdf_page`
-- section or table/figure label when visible
-- a short exact excerpt or a clearly marked paraphrase
-- boundary conditions needed to avoid overstating the source
+A Jev Choice, Noul, Score, or rerank reason is not evidence. Do not cite an index snippet that `read` has not confirmed. Mark a synthesis across papers as inference.
 
-Do not turn a Jev Choice, noul, score, or an LLM rerank reason into evidence. Do not cite a cached snippet without `read` verification. Label synthesis across papers as inference.
+## Flags
 
-## Retrieval boundaries
+- `--jev-noul` keeps or drops each page by suitability. `--jev-score` grades evidence strength. Pass both in the same `search` when both are needed.
+- `--no-llm` skips query expansion and Jev. `--no-dense` skips vectors. `--no-rerank` keeps fused order.
+- `--force-hash` recomputes SHA-256 even when the file manifest matches. `sync --no-embeddings` builds a text-only index.
+- Report `timings_seconds` from that run only.
 
-- Prefer an exact DOI, title, author, or method-name hit before dense retrieval.
-- Keep dense retrieval as a supplement to FTS5; the sparse path remains a valid fallback when either API is unavailable.
-- Send only the user query to query expansion. Post-retrieve judging may send short candidate excerpts, never full PDFs or full pages. Jev Choice (optional Noul/Score) judges those excerpts after reciprocal rank fusion; it does not search the library.
-- Index PDFs as primary evidence. Treat local HTML reports and BibTeX files as secondary metadata unless the user explicitly asks for them.
-- Search the web only after local coverage is exhausted or when current citation metadata must be verified. Distinguish local and external evidence.
+## Rules
 
-## Deterministic modes
-
-Use `search --no-llm` to test raw FTS5 and dense retrieval without query expansion or Jev, `--no-dense` to test sparse retrieval, and `--no-rerank` to keep fused ordering after expansion. Use `search --jev-noul` and/or `--jev-score` only when the calling agent needs those extra judgments. Use `sync --no-embeddings` only when intentionally building a sparse-only index.
-
-Use `read --force-hash` only for an explicit full-integrity check. Report measured stage timings as observations from the current run, not universal latency guarantees.
-
-If an optional language-model, TypeSafe, or query-embedding call fails, report the degraded mode and continue with the remaining index. If PDF extraction, SHA verification, database schema, or an explicitly requested embedding build fails, stop and fix the contract.
+- Retrieve pages, not whole documents. Keep at most the pages `search` returns.
+- Prefer an exact DOI, title, author, or method name when the question already contains one.
+- Send the user question to query expansion. Send Jev only short excerpts, never a full PDF or a full page.
+- Index PDFs. Use local HTML or BibTeX only when the user asks for that metadata.
+- Search the web only after the local library has no usable page, or when a citation's publication details must be checked. Label web results as external.
+- If PDF extraction, SHA verification, the database schema, or an explicitly requested embedding build fails, stop. Do not present a partial index as complete.

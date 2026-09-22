@@ -1,12 +1,21 @@
-# 找到那一页，再回到原 PDF 核对
+# Private KB retrieve
 
 [English](README.md) · **中文**
 
-面向本地 PDF 文献库的页级检索。全文检索和已存页向量负责定位。RRF 与 Jev 只给摘录排序。证据只来自原 PDF。
+在私人 PDF 文献库里找到那一页，再回到原 PDF 核对。
 
-## 用法
+全文检索和已存页向量负责定位。排序融合与 Jev 只给摘录排序。证据只来自原 PDF。
 
-这是一个 agent skill。任何能读指令、能执行命令的 agent 都可以用。把 `SKILL.md` 交给它即可。
+## 何时使用
+
+- 问题针对的是已经在本地文献库里的论文
+- 需要的是 PDF 页码，而不是文件名
+- 引用必须回到原页核对
+- 网页检索不是该用的来源
+
+## 准备
+
+把 [`SKILL.md`](SKILL.md) 交给任何能读指令、能执行命令的 agent。
 
 PDF 放在 `papers/`。模型配置写在 `SKILL.md` 旁边的 `.env`：
 
@@ -22,16 +31,18 @@ TYPESAFE_API_KEY=
 
 `llmurl`、`llmmodel`、`llmkey` 用于把问题扩成检索式。`emburl`、`embmodel`、`embkey` 用于嵌入检索式。`TYPESAFE_API_KEY` 启用 Jev。没有它时，改由语言模型重排。
 
-在 skill 根目录用自然语言提问。不要先运行 `sync`。`search` 会在 PDF 有增改时自己更新索引，然后返回页。`read` 从原 PDF 重新抽出选中的页。先写证据卡，再写事实结论。
+在 skill 根目录：
 
 ```bash
 python scripts/library.py search "哪一页定义了评估协议？"
 python scripts/library.py read <doc_id> --page <pdf_page> --context 1
 ```
 
-Python 包：`numpy`、`openai`、`python-dotenv`。系统工具：Poppler 的 `pdftotext` 和 `pdfinfo`。
+不要先运行 `sync`。PDF 有增改时，`search` 会自己更新索引。
 
-## 流程
+需要 Python 包 `numpy`、`openai`、`python-dotenv`，以及 Poppler 的 `pdftotext` 和 `pdfinfo`。
+
+## Agent 会做什么
 
 ```mermaid
 flowchart TD
@@ -59,22 +70,14 @@ flowchart TD
 
 文献库未变化时不重建索引。有变化时只处理新增或修改的 PDF：用 SHA-256 去重，抽取全文，重建全文索引，并只为还没有向量的页补嵌入。语言模型或嵌入接口失败时，保留仍然可用的检索路，并在结果中标明降级。Jev 失败时，改由语言模型按摘录里的显式证据打 0–3 分。
 
-## 检索
+## 一页是怎么选出来的
 
-查询扩展把问题写成少数英文检索式，保留方法名、指标、数据集和原问题。
+查询扩展把问题写成少数英文检索式，并保留方法名、指标、数据集和原问题。
 
-全文检索使用 SQLite FTS5，按 BM25 排序。每条检索式返回至多 30 页。单位是页，不是整篇文档。
+全文检索使用 SQLite FTS5，按 BM25 排序。每条检索式至多返回 30 页。单位是页，不是整篇文档。
 
-向量检索只嵌入检索式。页向量在建索引时已经写入，用余弦相似度与全库页向量比较，每条检索式再取至多 30 页。全文检索返回的页面不会再次嵌入。
+向量检索只嵌入检索式。页向量已经存在。每条检索式用余弦相似度与这些向量比较，再取至多 30 页。全文检索命中的页不会再次嵌入。
 
-两路名次用 Reciprocal Rank Fusion 合并。某一页在某一路的名次为 r 时，该路贡献 `1/(60+r)`。同一页在多路中都靠前，融合分更高。
+Reciprocal rank fusion 合并两路名次。某一页在某一路的名次为 r 时，该路贡献 `1/(60+r)`。融合后留下至多 12 页，同一文档至多 3 页，每页一段约 1600 字、对准首次命中词的摘录。
 
-融合之后截断为至多 12 页，同一文档至多 3 页。每页附一段约 1600 字的摘录，窗口对准检索词首次出现的位置。
-
-## 裁定与核对
-
-Jev 对短名单做 Choice，选项包含 `none`。`--jev-noul` 与 `--jev-score` 在同一次调用里追加适切性判断和证据强度。Choice 为 `none` 或置信度低时，第一名不算已核实。
-
-`read` 从原 PDF 重新抽取目标页及其前后各一页。文件大小和修改时间与索引一致时不重算 SHA-256。抽取文本过短，或问题指向图、表、公式、数值时，才渲染该页。
-
-事实陈述之前先形成证据卡：主张、支持程度（`direct`、`partial`、`not_found`）、文档标识、标题、页码、可见的章节或图表编号、短原文或明确标出的转述，以及不能外推的边界。Jev 的 Choice、Noul、Score 和重排理由都不是证据。跨文档综合标为推断。
+Jev 在这些摘录里做 Choice，选项包含 `none`。`--jev-noul` 与 `--jev-score` 在同一次调用里追加适切性和证据强度。Choice 为 `none` 或置信度低时，第一名尚未核实。Agent 随后重读原页，先写证据卡，再陈述事实。Jev 的分数不是证据。
