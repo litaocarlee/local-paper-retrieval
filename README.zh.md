@@ -4,6 +4,33 @@
 
 面向本地 PDF 文献库的页级检索。全文检索和已存页向量负责定位。RRF 与 Jev 只给摘录排序。证据只来自原 PDF。
 
+## 用法
+
+这是一个 Cursor skill。把本仓库克隆到项目的 skill 目录，让 `SKILL.md` 位于该 skill 的根上。Cursor 读取这个文件，并执行下面的命令。
+
+PDF 放在 `papers/`。模型配置写在 `SKILL.md` 旁边的 `.env`：
+
+```
+llmurl=
+llmmodel=
+llmkey=
+emburl=
+embmodel=
+embkey=
+TYPESAFE_API_KEY=
+```
+
+`llmurl`、`llmmodel`、`llmkey` 用于把问题扩成检索式。`emburl`、`embmodel`、`embkey` 用于嵌入检索式。`TYPESAFE_API_KEY` 启用 Jev。没有它时，改由语言模型重排。
+
+在 skill 根目录用自然语言提问。不要先运行 `sync`。`search` 会在 PDF 有增改时自己更新索引，然后返回页。`read` 从原 PDF 重新抽出选中的页。先写证据卡，再写事实结论。
+
+```bash
+python scripts/library.py search "哪一页定义了评估协议？"
+python scripts/library.py read <doc_id> --page <pdf_page> --context 1
+```
+
+Python 包：`numpy`、`openai`、`python-dotenv`。系统工具：Poppler 的 `pdftotext` 和 `pdfinfo`。
+
 ## 流程
 
 ```mermaid
@@ -51,7 +78,3 @@ Jev 对短名单做 Choice，选项包含 `none`。`--jev-noul` 与 `--jev-score
 `read` 从原 PDF 重新抽取目标页及其前后各一页。文件大小和修改时间与索引一致时不重算 SHA-256。抽取文本过短，或问题指向图、表、公式、数值时，才渲染该页。
 
 事实陈述之前先形成证据卡：主张、支持程度（`direct`、`partial`、`not_found`）、文档标识、标题、页码、可见的章节或图表编号、短原文或明确标出的转述，以及不能外推的边界。Jev 的 Choice、Noul、Score 和重排理由都不是证据。跨文档综合标为推断。
-
-## 依赖
-
-Python，以及 Poppler 的 `pdftotext` 与 `pdfinfo`。查询扩展和页向量各需要一个模型接口。TypeSafe 提供 Jev；缺失时使用语言模型重排。

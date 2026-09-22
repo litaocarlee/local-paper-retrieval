@@ -4,6 +4,33 @@
 
 Page-level retrieval for a local PDF library. Full-text search and stored page vectors locate the page. Reciprocal rank fusion and Jev only rank excerpts. The original PDF is the evidence.
 
+## Use
+
+This repository is a Cursor skill. Clone it into the project's skill directory so `SKILL.md` is the skill root. Cursor reads that file and runs the commands below.
+
+Put PDFs in `papers/`. Put model settings in `.env` next to `SKILL.md`:
+
+```
+llmurl=
+llmmodel=
+llmkey=
+emburl=
+embmodel=
+embkey=
+TYPESAFE_API_KEY=
+```
+
+`llmurl`, `llmmodel`, and `llmkey` expand the question. `emburl`, `embmodel`, and `embkey` embed the queries. `TYPESAFE_API_KEY` enables Jev. Without it, reranking uses the language model.
+
+From the skill root, ask in natural language. Do not run `sync` first. `search` refreshes the index when a PDF was added or changed, then returns pages. `read` re-extracts the chosen page from the original PDF. Write an evidence card before stating a fact.
+
+```bash
+python scripts/library.py search "Which page defines the evaluation protocol?"
+python scripts/library.py read <doc_id> --page <pdf_page> --context 1
+```
+
+Python packages: `numpy`, `openai`, `python-dotenv`. System tools: Poppler's `pdftotext` and `pdfinfo`.
+
 ## Pipeline
 
 ```mermaid
@@ -51,7 +78,3 @@ Jev runs a Choice over the shortlist. The options include `none`. `--jev-noul` a
 `read` extracts the selected page and one neighboring page on each side from the original PDF. SHA-256 is recomputed only when the file size or modification time no longer matches the index. The page is rendered when the extracted text is thin, or when the question targets a figure, table, equation, or number.
 
 A factual statement is preceded by an evidence card: the claim, the support status (`direct`, `partial`, or `not_found`), the document identifier, the title, the PDF page, any visible section or figure label, a short quotation or a clearly marked paraphrase, and the boundary beyond which the source should not be stretched. A Jev Choice, Noul, Score, or reranking reason is not evidence. A synthesis across documents is labeled as inference.
-
-## Requirements
-
-Python, plus Poppler's `pdftotext` and `pdfinfo`. Query expansion and page embeddings each require a model endpoint. TypeSafe supplies Jev. If it is unavailable, reranking falls back to the language model.

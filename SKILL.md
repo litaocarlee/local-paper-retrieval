@@ -1,11 +1,11 @@
 ---
-name: local-paper-retrieval
-description: Search, rank, and verify evidence from a local PDF literature library using automatic change detection, SHA-256 deduplication, SQLite FTS5, embedding retrieval, LLM query expansion, TypeSafe Jev Choice with optional Noul/Score and an LLM fallback, conditional visual review, and original-PDF page verification. Use when answering a question from local full text, locating a passage, or retrieving exact evidence with a PDF page anchor.
+name: local-pdf-page-evidence
+description: Cursor skill that finds a page in a local PDF library and verifies it on the original PDF. Uses SHA-256 deduplication, SQLite FTS5, stored page vectors, LLM query expansion, TypeSafe Jev Choice with optional Noul/Score and an LLM fallback, and conditional visual review. Use when answering a question from local full text or retrieving exact evidence with a PDF page anchor.
 ---
 
-# Local Paper Retrieval
+# Local PDF page evidence
 
-Treat the PDF as the evidence source. Treat index snippets, embedding matches, LLM rankings, and Jev judgments only as candidate locators.
+Cursor skill. Treat the PDF as the evidence source. Treat index snippets, embedding matches, LLM rankings, and Jev judgments only as candidate locators.
 
 Never print or persist API keys. Do not build a second index.
 
