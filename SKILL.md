@@ -1,11 +1,11 @@
 ---
 name: private-kb-retrieve
-description: Finds a page in a private PDF library and verifies the answer on the original PDF. Use when the user asks about local papers, a private knowledge base, or wants a page-level citation instead of a web result. Full-text search and stored page vectors locate the page; Jev only ranks excerpts.
+description: Finds a page in a private PDF library and verifies the answer on the original PDF. Jev integrated judges whether a retrieved excerpt actually answers before any fact is stated. Use when the user asks about local papers, a private knowledge base, or wants a page-level citation instead of a web result.
 ---
 
 # Private KB retrieve
 
-The PDF is the evidence. Index snippets, embedding matches, and Jev judgments only locate a page.
+The PDF is the evidence. Index snippets and embedding matches only locate candidate pages. Jev integrated then accepts or rejects those excerpts, including `none` when none of them answers. A Jev judgment is not itself evidence.
 
 Never print or persist API keys. Do not build a second index.
 

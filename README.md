@@ -4,7 +4,17 @@
 
 Find the page in a private PDF library, then verify it on the original PDF.
 
-Full-text search and stored page vectors locate the page. Rank fusion and Jev only rank excerpts. The original PDF is the evidence.
+Full-text search and stored page vectors locate candidate pages. **Jev integrated** then judges whether an excerpt actually answers. The original PDF remains the evidence.
+
+## Jev integrated
+
+Rank fusion only knows which pages matched. It does not know whether the text on the page can answer the question. Jev sits on the shortlist and makes that judgment before any fact is stated.
+
+- It chooses the excerpt that contains the needed fact, or `none` when every excerpt is only topically related.
+- A `none` or a low confidence stops the top-ranked page from being treated as the answer. The agent reads further instead of defending rank 1.
+- Suitability and evidence strength can be requested in that same judgment, so each page can be kept or dropped without a second retrieval pass.
+- The judgment is confined to the excerpt in hand. A page is not promoted because the answer might appear somewhere else in the paper.
+- The chosen page is still re-read from the original PDF. Jev decides where to look. It does not become the citation.
 
 ## Use when
 
