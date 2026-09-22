@@ -1,8 +1,8 @@
-# Local Paper Retrieval
+# Find the page. Verify it on the original PDF.
 
 **English** · [中文](README.zh.md)
 
-Page-level hybrid retrieval. The input is a natural-language question. The output is evidence checked against the original PDF. Full-text hits, page-vector similarity, and Jev probabilities locate a page. They do not replace the source.
+Page-level retrieval for a local PDF library. Full-text search and stored page vectors locate the page. Reciprocal rank fusion and Jev only rank excerpts. The original PDF is the evidence.
 
 ## Pipeline
 
