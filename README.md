@@ -1,5 +1,7 @@
 # Local Paper Retrieval
 
+中文 · [English](README.en.md)
+
 页级混合检索。输入是一个自然语言问题，输出是回到原 PDF 核对过的证据。全文命中、页向量相似度和 Jev 概率只负责定位，不能代替原文。
 
 ## 流程
