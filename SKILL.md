@@ -1,11 +1,11 @@
 ---
 name: private-kb-retrieve
-description: Cursor skill that finds a page in a local PDF library and verifies it on the original PDF. Uses SHA-256 deduplication, SQLite FTS5, stored page vectors, LLM query expansion, TypeSafe Jev Choice with optional Noul/Score and an LLM fallback, and conditional visual review. Use when answering a question from local full text or retrieving exact evidence with a PDF page anchor.
+description: Agent skill that finds a page in a local PDF library and verifies it on the original PDF. Uses SHA-256 deduplication, SQLite FTS5, stored page vectors, LLM query expansion, TypeSafe Jev Choice with optional Noul/Score and an LLM fallback, and conditional visual review. Use when answering a question from local full text or retrieving exact evidence with a PDF page anchor.
 ---
 
 # Private KB retrieve
 
-Cursor skill. Treat the PDF as the evidence source. Treat index snippets, embedding matches, LLM rankings, and Jev judgments only as candidate locators.
+Agent skill. Treat the PDF as the evidence source. Treat index snippets, embedding matches, LLM rankings, and Jev judgments only as candidate locators.
 
 Never print or persist API keys. Do not build a second index.
 

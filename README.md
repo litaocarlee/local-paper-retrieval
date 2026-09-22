@@ -6,7 +6,7 @@ Page-level retrieval for a local PDF library. Full-text search and stored page v
 
 ## Use
 
-This repository is a Cursor skill. Clone it into the project's skill directory so `SKILL.md` is the skill root. Cursor reads that file and runs the commands below.
+This repository is an agent skill. Any agent that can read instructions and run commands can use it. Point the agent at `SKILL.md`.
 
 Put PDFs in `papers/`. Put model settings in `.env` next to `SKILL.md`:
 

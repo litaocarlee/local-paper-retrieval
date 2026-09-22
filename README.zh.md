@@ -6,7 +6,7 @@
 
 ## 用法
 
-这是一个 Cursor skill。把本仓库克隆到项目的 skill 目录，让 `SKILL.md` 位于该 skill 的根上。Cursor 读取这个文件，并执行下面的命令。
+这是一个 agent skill。任何能读指令、能执行命令的 agent 都可以用。把 `SKILL.md` 交给它即可。
 
 PDF 放在 `papers/`。模型配置写在 `SKILL.md` 旁边的 `.env`：
 
